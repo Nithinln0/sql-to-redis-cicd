@@ -23,6 +23,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Run automated tests
+        run: pytest -v
+
       - name: Start MySQL and Redis
         run: docker compose up -d
 
