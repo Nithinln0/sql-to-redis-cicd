@@ -1,0 +1,54 @@
+
+name: SQL to Redis CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get project code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Start MySQL and Redis
+        run: docker compose up -d
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..60}; do
+            if docker exec sql-redis-mysql \
+              mysqladmin ping -h 127.0.0.1 \
+              -u root -prootpass123 --silent; then
+              echo "MySQL is ready"
+              break
+            fi
+            sleep 2
+          done
+          docker exec sql-redis-mysql \
+            mysqladmin ping -h 127.0.0.1 \
+            -u root -prootpass123 --silent
+
+      - name: Run SQL to Redis migration
+        run: python -m app.migrate
+
+      - name: Verify Redis data
+        run: |
+          docker exec sql-redis-redis \
+            redis-cli EXISTS employee:101 employee:102 employee:103
+
+      - name: Stop databases
+        if: always()
+        run: docker compose down
