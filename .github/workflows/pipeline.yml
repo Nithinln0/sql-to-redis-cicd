@@ -44,6 +44,11 @@ jobs:
             mysqladmin ping -h 127.0.0.1 \
             -u root -prootpass123 --silent
 
+      - name: Check MySQL source data
+        run: |
+          docker exec sql-redis-mysql mysql -u root -prootpass123 company -e "SELECT * FROM products;"
+          docker exec sql-redis-mysql mysql -u root -prootpass123 company -e "SELECT * FROM employees;"
+
       - name: Run SQL to Redis migration
         run: python -m app.migrate
 
