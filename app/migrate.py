@@ -1,11 +1,20 @@
 
 import json
 import os
+import logging
 
 import mysql.connector
 import redis
 
 CHECKPOINT_KEY = "migration:last_success"
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+logger = logging.getLogger(__name__)
 
 
 def get_mysql_connection():
@@ -27,6 +36,8 @@ def get_redis_connection():
 
 
 def migrate_data():
+    logger.info("Starting employee migration")
+
     connection = get_mysql_connection()
     redis_client = get_redis_connection()
 
@@ -36,6 +47,8 @@ def migrate_data():
         checkpoint = redis_client.get(CHECKPOINT_KEY)
 
         if checkpoint:
+            logger.info("Checkpoint found: %s", checkpoint)
+
             cursor.execute(
                 """
                 SELECT id, name, department, updated_at
@@ -46,6 +59,8 @@ def migrate_data():
                 (checkpoint,),
             )
         else:
+            logger.info("No checkpoint found. Running full employee migration")
+
             cursor.execute(
                 """
                 SELECT id, name, department, updated_at
@@ -55,6 +70,8 @@ def migrate_data():
             )
 
         rows = cursor.fetchall()
+
+        logger.info("Fetched %d employee records", len(rows))
 
         for row in rows:
             updated_at = row.pop("updated_at")
@@ -67,19 +84,26 @@ def migrate_data():
 
             key = f"employee:{row['id']}"
             redis_client.set(key, json.dumps(row))
-            print(f"Saved {key}")
+
+            logger.info("Saved %s", key)
 
         if rows:
             latest = max(row["updated_at"] for row in rows)
             redis_client.set(CHECKPOINT_KEY, latest)
+            logger.info("Checkpoint updated: %s", latest)
 
-        print(f"Migration completed: {len(rows)} records")
+        logger.info(
+            "Employee migration completed successfully: %d records",
+            len(rows)
+        )
 
     finally:
         connection.close()
 
 
 def migrate_products():
+    logger.info("Starting product migration")
+
     connection = get_mysql_connection()
     redis_client = get_redis_connection()
 
@@ -92,20 +116,30 @@ def migrate_products():
 
         rows = cursor.fetchall()
 
+        logger.info("Fetched %d product records", len(rows))
+
         for row in rows:
             # Convert MySQL Decimal to JSON-compatible float
             row["price"] = float(row["price"])
 
             key = f"product:{row['id']}"
             redis_client.set(key, json.dumps(row))
-            print(f"Saved {key}")
 
-        print(f"Products migrated: {len(rows)} records")
+            logger.info("Saved %s", key)
+
+        logger.info(
+            "Product migration completed successfully: %d records",
+            len(rows)
+        )
 
     finally:
         connection.close()
 
 
 if __name__ == "__main__":
+    logger.info("SQL-to-Redis migration pipeline started")
+
     migrate_data()
     migrate_products()
+
+    logger.info("SQL-to-Redis migration pipeline finished")
