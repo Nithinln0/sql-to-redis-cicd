@@ -35,6 +35,39 @@ def get_redis_connection():
     )
 
 
+# Employee data validation
+def validate_employee(row):
+    if row.get("id") is None:
+        raise ValueError("Employee ID cannot be empty")
+
+    if not row.get("name") or not row["name"].strip():
+        raise ValueError(f"Invalid employee name for ID {row.get('id')}")
+
+    if not row.get("department") or not row["department"].strip():
+        raise ValueError(
+            f"Invalid department for employee ID {row.get('id')}"
+        )
+
+    logger.info("Employee validation passed for ID %s", row["id"])
+
+
+# Product data validation
+def validate_product(row):
+    if row.get("id") is None:
+        raise ValueError("Product ID cannot be empty")
+
+    if not row.get("name") or not row["name"].strip():
+        raise ValueError(f"Invalid product name for ID {row.get('id')}")
+
+    if row.get("price") is None:
+        raise ValueError(f"Product price is missing for ID {row.get('id')}")
+
+    if float(row["price"]) < 0:
+        raise ValueError(f"Negative price for product ID {row.get('id')}")
+
+    logger.info("Product validation passed for ID %s", row["id"])
+
+
 def migrate_data():
     connection = None
     cursor = None
@@ -45,7 +78,6 @@ def migrate_data():
         connection = get_mysql_connection()
         redis_client = get_redis_connection()
 
-        # Check Redis connection
         redis_client.ping()
         logger.info("Redis connection successful")
 
@@ -81,6 +113,9 @@ def migrate_data():
         logger.info("Fetched %d employee records", len(rows))
 
         for row in rows:
+            # Validate before migrating
+            validate_employee(row)
+
             updated_at = row.pop("updated_at")
 
             row["updated_at"] = (
@@ -127,7 +162,6 @@ def migrate_products():
         connection = get_mysql_connection()
         redis_client = get_redis_connection()
 
-        # Check Redis connection
         redis_client.ping()
         logger.info("Redis connection successful")
 
@@ -142,6 +176,9 @@ def migrate_products():
         logger.info("Fetched %d product records", len(rows))
 
         for row in rows:
+            # Validate before migrating
+            validate_product(row)
+
             # Convert Decimal to JSON-compatible float
             row["price"] = float(row["price"])
 
