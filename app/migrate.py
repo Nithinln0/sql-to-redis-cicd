@@ -36,12 +36,19 @@ def get_redis_connection():
 
 
 def migrate_data():
-    logger.info("Starting employee migration")
-
-    connection = get_mysql_connection()
-    redis_client = get_redis_connection()
+    connection = None
+    cursor = None
 
     try:
+        logger.info("Starting employee migration")
+
+        connection = get_mysql_connection()
+        redis_client = get_redis_connection()
+
+        # Check Redis connection
+        redis_client.ping()
+        logger.info("Redis connection successful")
+
         cursor = connection.cursor(dictionary=True)
 
         checkpoint = redis_client.get(CHECKPOINT_KEY)
@@ -97,17 +104,33 @@ def migrate_data():
             len(rows)
         )
 
+    except Exception:
+        logger.exception("Employee migration failed")
+        raise
+
     finally:
-        connection.close()
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+            logger.info("MySQL connection closed")
 
 
 def migrate_products():
-    logger.info("Starting product migration")
-
-    connection = get_mysql_connection()
-    redis_client = get_redis_connection()
+    connection = None
+    cursor = None
 
     try:
+        logger.info("Starting product migration")
+
+        connection = get_mysql_connection()
+        redis_client = get_redis_connection()
+
+        # Check Redis connection
+        redis_client.ping()
+        logger.info("Redis connection successful")
+
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
@@ -119,7 +142,7 @@ def migrate_products():
         logger.info("Fetched %d product records", len(rows))
 
         for row in rows:
-            # Convert MySQL Decimal to JSON-compatible float
+            # Convert Decimal to JSON-compatible float
             row["price"] = float(row["price"])
 
             key = f"product:{row['id']}"
@@ -132,14 +155,28 @@ def migrate_products():
             len(rows)
         )
 
+    except Exception:
+        logger.exception("Product migration failed")
+        raise
+
     finally:
-        connection.close()
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+            logger.info("MySQL connection closed")
 
 
 if __name__ == "__main__":
-    logger.info("SQL-to-Redis migration pipeline started")
+    try:
+        logger.info("SQL-to-Redis migration pipeline started")
 
-    migrate_data()
-    migrate_products()
+        migrate_data()
+        migrate_products()
 
-    logger.info("SQL-to-Redis migration pipeline finished")
+        logger.info("SQL-to-Redis migration pipeline finished successfully")
+
+    except Exception:
+        logger.exception("SQL-to-Redis pipeline failed")
+        raise
