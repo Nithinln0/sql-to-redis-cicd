@@ -47,10 +47,22 @@ jobs:
       - name: Run SQL to Redis migration
         run: python -m app.migrate
 
-      - name: Verify Redis data
+      - name: Verify Redis employee data
         run: |
-          docker exec sql-redis-redis \
-            redis-cli EXISTS employee:101 employee:102 employee:103
+          count=$(docker exec sql-redis-redis redis-cli EXISTS employee:101 employee:102 employee:103)
+          echo "Employee keys found: $count"
+          test "$count" -eq 3
+
+      - name: Verify Redis product data
+        run: |
+          count=$(docker exec sql-redis-redis redis-cli EXISTS product:201 product:202)
+          echo "Product keys found: $count"
+          test "$count" -eq 2
+
+      - name: Display migrated products
+        run: |
+          docker exec sql-redis-redis redis-cli GET product:201
+          docker exec sql-redis-redis redis-cli GET product:202
 
       - name: Stop databases
         if: always()
